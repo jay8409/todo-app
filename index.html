@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>글래스 투두 | 카카오 SSO 연동 Todo MVP 앱</title>
+  <meta name="description" content="카카오 1초 로그인(Kakao SSO)과 Supabase 클라우드 데이터베이스가 연동된 세련된 글래스모피즘 할 일 관리 웹 애플리케이션입니다.">
+  
+  <!-- Google Fonts & Font Awesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Supabase JS Client SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient background glow elements -->
+  <div class="glow-bg">
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+    <div class="glow-orb orb-3"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-list-check"></i>
+        </div>
+        <div>
+          <h1>Glass Todo</h1>
+          <p class="subtitle">카카오 SSO 로그인 연동 스마트 할 일 관리 (MVP)</p>
+        </div>
+      </div>
+
+      <!-- Stats Bar & Kakao Auth Controls -->
+      <div class="header-right">
+        <!-- Kakao Auth Controls -->
+        <div id="kakaoLoginContainer">
+          <button id="kakaoLoginBtn" class="btn btn-kakao" title="카카오 계정으로 간편 로그인">
+            <i class="fa-solid fa-comment"></i>
+            <span>카카오로 1초 로그인</span>
+          </button>
+        </div>
+
+        <div id="kakaoProfileContainer" class="kakao-user-profile hidden">
+          <img id="kakaoUserAvatar" class="kakao-avatar" src="" alt="Kakao Avatar">
+          <span id="kakaoUserName" class="kakao-username">닉네임</span>
+          <button id="kakaoLogoutBtn" class="btn-logout">로그아웃</button>
+        </div>
+
+        <!-- Supabase Status Badge -->
+        <button id="supabaseConfigBtn" class="supabase-status-badge" title="Supabase DB 연동 설정">
+          <i class="fa-solid fa-database"></i>
+          <span id="dbModeText">Supabase 클라우드</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Progress Bar Section -->
+    <section class="glass-card progress-card">
+      <div class="progress-header">
+        <div class="progress-title">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>오늘의 할 일 달성률</span>
+        </div>
+        <div class="progress-stats">
+          <span id="completedStatsText">0 / 0 완료</span>
+          <span id="progressPercentText" class="progress-percent">0%</span>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div id="progressBarFill" class="progress-fill" style="width: 0%;"></div>
+      </div>
+    </section>
+
+    <!-- Main Content Layout -->
+    <main class="main-layout">
+      <!-- Left Column: Add Todo Form -->
+      <aside class="sidebar">
+        <div class="glass-card form-card">
+          <div class="card-header">
+            <h2><i class="fa-solid fa-square-plus"></i> 새 할 일 추가</h2>
+          </div>
+
+          <form id="todoForm" class="todo-form">
+            <!-- Auth Status Banner inside form -->
+            <div id="formAuthBanner" class="form-auth-banner">
+              <span id="authBannerText">
+                <i class="fa-solid fa-info-circle"></i> 카카오로 로그인하면 기기 간 할 일 목록이 동기화됩니다.
+              </span>
+            </div>
+
+            <!-- Task Title Input -->
+            <div class="form-group">
+              <label for="todoTitleInput" class="form-label"><i class="fa-solid fa-pencil"></i> 할 일 제목</label>
+              <input type="text" id="todoTitleInput" class="glass-input" placeholder="어떤 일을 하실 예정인가요?" required maxlength="80">
+            </div>
+
+            <!-- Priority Selection -->
+            <div class="form-group">
+              <label class="form-label"><i class="fa-solid fa-flag"></i> 우선순위</label>
+              <div class="priority-selector">
+                <button type="button" class="priority-btn priority-high" data-priority="high">
+                  <i class="fa-solid fa-circle"></i> 높음
+                </button>
+                <button type="button" class="priority-btn priority-medium selected" data-priority="medium">
+                  <i class="fa-solid fa-circle"></i> 보통
+                </button>
+                <button type="button" class="priority-btn priority-low" data-priority="low">
+                  <i class="fa-solid fa-circle"></i> 낮음
+                </button>
+              </div>
+            </div>
+
+            <!-- Due Date Picker -->
+            <div class="form-group">
+              <label for="todoDueDateInput" class="form-label"><i class="fa-regular fa-calendar-check"></i> 마감 목표일 (선택)</label>
+              <input type="date" id="todoDueDateInput" class="glass-input glass-date">
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary btn-block">
+              <i class="fa-solid fa-plus"></i>
+              <span>할 일 추가하기</span>
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      <!-- Right Column: Filter Controls & Todo List Feed -->
+      <section class="feed-section">
+        <!-- Controls Header: Tabs & Search -->
+        <div class="glass-card controls-card">
+          <!-- Filter Tabs -->
+          <div class="filter-tabs">
+            <button class="tab-btn active" data-filter="all">전체 <span id="countAll" class="tab-count">0</span></button>
+            <button class="tab-btn" data-filter="active">진행 중 <span id="countActive" class="tab-count">0</span></button>
+            <button class="tab-btn" data-filter="completed">완료됨 <span id="countCompleted" class="tab-count">0</span></button>
+          </div>
+
+          <!-- Search & Action -->
+          <div class="controls-right">
+            <div class="search-box">
+              <i class="fa-solid fa-magnifying-glass search-icon"></i>
+              <input type="text" id="searchInput" class="glass-input search-input" placeholder="검색어 입력...">
+            </div>
+
+            <button id="clearCompletedBtn" class="btn btn-secondary btn-sm" title="완료된 항목 모두 삭제">
+              <i class="fa-solid fa-broom"></i> 완료항목 정리
+            </button>
+          </div>
+        </div>
+
+        <!-- Todo List Feed Container -->
+        <div id="todoList" class="todo-list">
+          <!-- Dynamically Rendered Todo Items -->
+        </div>
+
+        <!-- Empty Feed State -->
+        <div id="emptyState" class="empty-state hidden">
+          <div class="empty-icon"><i class="fa-solid fa-clipboard-check"></i></div>
+          <h3>등록된 할 일이 없습니다</h3>
+          <p>새로운 목표를 등록하고 달성해 보세요!</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: Edit Todo Modal -->
+  <div id="editTodoModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="glass-card modal-card">
+      <button class="modal-close-btn" id="closeEditModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      <div class="modal-header">
+        <div class="modal-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+        <h3>할 일 수정하기</h3>
+      </div>
+      <form id="editTodoForm">
+        <div class="form-group">
+          <label for="editTitleInput" class="form-label">할 일 제목</label>
+          <input type="text" id="editTitleInput" class="glass-input" required maxlength="80">
+        </div>
+        <div class="form-group">
+          <label class="form-label">우선순위</label>
+          <div class="priority-selector" id="editPrioritySelector">
+            <button type="button" class="priority-btn priority-high" data-priority="high">높음</button>
+            <button type="button" class="priority-btn priority-medium" data-priority="medium">보통</button>
+            <button type="button" class="priority-btn priority-low" data-priority="low">낮음</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="editDueDateInput" class="form-label">마감 목표일</label>
+          <input type="date" id="editDueDateInput" class="glass-input glass-date">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="cancelEditModalBtn">취소</button>
+          <button type="submit" class="btn btn-primary">수정 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification System -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
